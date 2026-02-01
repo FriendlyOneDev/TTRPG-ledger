@@ -70,6 +70,11 @@ async def create_log_entry(
     if not pilot_data:
         raise HTTPException(status_code=404, detail="Pilot not found")
 
+    # Calculate LL clock change for game logs
+    ll_clock_change = 0
+    if log_entry.log_type == LogType.GAME and log_entry.tick_ll_clock:
+        ll_clock_change = 1
+
     # Create the log entry
     log_data = {
         "pilot_id": str(pilot_id),
@@ -77,6 +82,7 @@ async def create_log_entry(
         "description": log_entry.description,
         "manna_change": log_entry.manna_change,
         "downtime_change": log_entry.downtime_change,
+        "ll_clock_change": ll_clock_change,
     }
 
     log_result = db.table("log_entries").insert(log_data).execute()
@@ -85,15 +91,16 @@ async def create_log_entry(
         raise HTTPException(status_code=400, detail="Failed to create log entry")
 
     created_log = log_result.data[0]
+    log_id = created_log["id"]
 
     # Handle LL clock progression for game logs
-    if log_entry.log_type == LogType.GAME and log_entry.tick_ll_clock:
+    if ll_clock_change > 0:
         current_ll = pilot_data["license_level"]
         current_progress = pilot_data["ll_clock_progress"]
         segments = get_ll_clock_segments(current_ll)
 
         # Tick the LL clock
-        new_progress = current_progress + 1
+        new_progress = current_progress + ll_clock_change
 
         if new_progress >= segments and current_ll < 12:
             # Level up!
@@ -140,10 +147,48 @@ async def create_log_entry(
 
             # Record the clock progress
             db.table("clock_progress").insert({
-                "log_entry_id": created_log["id"],
+                "log_entry_id": log_id,
                 "clock_id": str(progress.clock_id),
                 "ticks_applied": progress.ticks_applied,
             }).execute()
+
+    # Handle gear acquired
+    for gear in log_entry.gear_acquired:
+        db.table("exotic_gear").insert({
+            "pilot_id": str(pilot_id),
+            "name": gear.name,
+            "description": gear.description,
+            "notes": gear.notes,
+            "acquired_log_id": log_id,
+        }).execute()
+
+    # Handle gear lost
+    for gear_lost in log_entry.gear_lost:
+        # Verify gear belongs to pilot and is not already lost
+        gear_result = (
+            db.table("exotic_gear")
+            .select("*")
+            .eq("id", str(gear_lost.gear_id))
+            .eq("pilot_id", str(pilot_id))
+            .is_("lost_log_id", "null")
+            .single()
+            .execute()
+        )
+
+        if gear_result.data:
+            db.table("exotic_gear").update({
+                "lost_log_id": log_id,
+            }).eq("id", str(gear_lost.gear_id)).execute()
+
+    # Handle reputation changes
+    for rep_change in log_entry.reputation_changes:
+        db.table("reputation_changes").insert({
+            "log_entry_id": log_id,
+            "pilot_id": str(pilot_id),
+            "corporation_id": str(rep_change.corporation_id),
+            "change_value": rep_change.change_value,
+            "notes": rep_change.notes,
+        }).execute()
 
     # Update pilot's manna and downtime
     if log_entry.manna_change != 0 or log_entry.downtime_change != 0:

@@ -3,40 +3,36 @@ from datetime import datetime
 from uuid import UUID
 
 
-class ReputationBase(BaseModel):
-    """Base corporation reputation model."""
+class ReputationChangeCreate(BaseModel):
+    """Model for creating a reputation change (tied to a log entry)."""
 
     corporation_id: UUID
-    reputation_value: int = 0
+    change_value: int  # Positive or negative change
     notes: str | None = None
 
 
-class ReputationCreate(ReputationBase):
-    """Model for creating a reputation entry."""
-
-    pass
-
-
-class ReputationUpdate(BaseModel):
-    """Model for updating a reputation entry."""
-
-    reputation_value: int | None = None
-    notes: str | None = None
-
-
-class CorporationReputation(ReputationBase):
-    """Full corporation reputation model with all fields."""
+class ReputationChange(ReputationChangeCreate):
+    """Full reputation change model."""
 
     id: UUID
+    log_entry_id: UUID
     pilot_id: UUID
     created_at: datetime
-    updated_at: datetime
 
     class Config:
         from_attributes = True
 
 
-class ReputationWithCorp(CorporationReputation):
-    """Reputation entry with corporation name included."""
+class ReputationChangeWithCorp(ReputationChange):
+    """Reputation change with corporation name."""
 
     corporation_name: str
+
+
+class PilotReputation(BaseModel):
+    """Aggregated reputation for a pilot-corporation pair (from pilot_reputation view)."""
+
+    pilot_id: UUID
+    corporation_id: UUID
+    corporation_name: str
+    reputation_value: int  # Sum of all changes

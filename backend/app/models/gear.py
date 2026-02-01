@@ -12,7 +12,7 @@ class GearBase(BaseModel):
 
 
 class GearCreate(GearBase):
-    """Model for creating an exotic gear entry."""
+    """Model for creating an exotic gear entry (must be tied to a log entry)."""
 
     pass
 
@@ -25,14 +25,28 @@ class GearUpdate(BaseModel):
     notes: str | None = None
 
 
+class GearLose(BaseModel):
+    """Model for marking gear as lost (tied to a log entry)."""
+
+    pass
+
+
 class ExoticGear(GearBase):
     """Full exotic gear model with all fields."""
 
     id: UUID
     pilot_id: UUID
     acquired_date: datetime
+    acquired_log_id: UUID | None = None  # The log entry when gear was obtained
+    lost_log_id: UUID | None = None  # The log entry when gear was lost (null = still owned)
     created_at: datetime
     updated_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class ExoticGearWithLogInfo(ExoticGear):
+    """Gear with additional log information."""
+
+    is_lost: bool = False  # Convenience field: True if lost_log_id is not None

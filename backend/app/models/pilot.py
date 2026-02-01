@@ -10,6 +10,7 @@ class PilotBase(BaseModel):
     callsign: str | None = None
     background: str | None = None
     notes: str | None = None
+    avatar_url: str | None = None
 
 
 class PilotCreate(PilotBase):
@@ -25,6 +26,7 @@ class PilotUpdate(BaseModel):
     callsign: str | None = None
     background: str | None = None
     notes: str | None = None
+    avatar_url: str | None = None
 
 
 class Pilot(PilotBase):
